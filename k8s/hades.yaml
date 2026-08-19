@@ -54,15 +54,15 @@ spec:
             # avaliar terminal.backend: docker (sandboxado) no config.yaml.
             - name: API_SERVER_HOST
               value: "0.0.0.0"
-            # Dashboard fica em loopback -- so alcancavel via kubectl
-            # port-forward por enquanto (decisao: Control UI/CLI isolado,
-            # sem expor ainda). Bind em 0.0.0.0 exige provedor de auth
-            # configurado (dashboard.basic_auth ou OAuth no config.yaml),
-            # que ainda nao fizemos.
+            # Dashboard exposto publicamente via hades.ecomciencia.com atras
+            # do Cloudflare Access (12/08/2026) -- por isso 0.0.0.0. O app
+            # recusa bind publico sem auth propria: configuramos
+            # dashboard.basic_auth (usuario/senha) direto no config.yaml
+            # como segunda camada, redundante com o Access de proposito.
             - name: HERMES_DASHBOARD
               value: "1"
             - name: HERMES_DASHBOARD_HOST
-              value: "127.0.0.1"
+              value: "0.0.0.0"
           envFrom:
             - secretRef:
                 name: hades-env
@@ -102,8 +102,26 @@ spec:
       port: 9119
       targetPort: 9119
 
-# Sem Ingress de proposito por enquanto (decisao do Robson, 11/08/2026):
-# Hades comeca isolado, so acessivel via `kubectl port-forward`, ate validar
-# o comportamento dele antes de expor via cerbero.ecomciencia.com/Cloudflare
-# Access. Quando for a hora, replicar o padrao de access.tf/dns.tf do
-# infra-olympus (mesma trava: so robson.branco@gmail.com).
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hades
+  namespace: olympus
+spec:
+  rules:
+    - host: hades.ecomciencia.com
+      http:
+        paths:
+          # So o dashboard fica publico. A API (8642) continua acessivel so
+          # de dentro do cluster (Service ClusterIP) -- ela roda comandos
+          # com acesso total ao terminal/filesystem do container, exposicao
+          # publica dela fica pra quando terminal.backend: docker
+          # (sandboxado) estiver configurado.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hades
+                port:
+                  number: 9119
