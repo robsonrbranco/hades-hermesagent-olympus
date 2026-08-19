@@ -1,0 +1,60 @@
+name: deploy
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        run: |
+          docker build -t ghcr.io/robsonrbranco/hades-hermesagent:${{ github.sha }} -t ghcr.io/robsonrbranco/hades-hermesagent:latest .
+          docker push ghcr.io/robsonrbranco/hades-hermesagent:${{ github.sha }}
+          docker push ghcr.io/robsonrbranco/hades-hermesagent:latest
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Deploy to k3s
+        run: |
+          echo "${{ secrets.KUBECONFIG_OLYMPUS }}" > kubeconfig.yaml
+          export KUBECONFIG=kubeconfig.yaml
+
+          kubectl apply -f k8s/hades.yaml
+
+          kubectl -n olympus create secret docker-registry ghcr-pull-secret \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${{ secrets.GHCR_PULL_TOKEN }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Chaves DEDICADAS do Hades, separadas das do Cerbero de proposito
+          # (decisao do Robson, 11/08/2026): o objetivo inclui comparar custo
+          # por modelo, e chave compartilhada misturaria o gasto dos dois
+          # agentes no dashboard de cada provedor.
+          kubectl -n olympus create secret generic hades-env \
+            --from-literal=ANTHROPIC_API_KEY="${{ secrets.HADES_ANTHROPIC_API_KEY }}" \
+            --from-literal=OPENAI_API_KEY="${{ secrets.HADES_OPENAI_API_KEY }}" \
+            --from-literal=DEEPSEEK_API_KEY="${{ secrets.HADES_DEEPSEEK_API_KEY }}" \
+            --from-literal=GEMINI_API_KEY="${{ secrets.HADES_GEMINI_API_KEY }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl -n olympus set image deployment/hades hades=ghcr.io/robsonrbranco/hades-hermesagent:${{ github.sha }}
+          kubectl -n olympus rollout status deployment/hades --timeout=180s
+          rm kubeconfig.yaml
