@@ -54,6 +54,7 @@ jobs:
             --from-literal=DEEPSEEK_API_KEY="${{ secrets.HADES_DEEPSEEK_API_KEY }}" \
             --from-literal=GEMINI_API_KEY="${{ secrets.HADES_GEMINI_API_KEY }}" \
             --from-literal=API_SERVER_KEY="${{ secrets.HADES_API_SERVER_KEY }}" \
+            --from-literal=TAVILY_API_KEY="${{ secrets.HADES_TAVILY_API_KEY }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
           kubectl -n olympus set image deployment/hades hades=ghcr.io/robsonrbranco/hades-hermesagent:${{ github.sha }}
