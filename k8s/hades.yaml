@@ -37,6 +37,17 @@ spec:
               containerPort: 8642
             - name: dashboard
               containerPort: 9119
+          # API (8642) e dashboard (9119) vem DESLIGADOS por padrao na
+          # imagem oficial -- so o "gateway" (mensageria+cron) sobe sozinho.
+          # Descoberto no primeiro deploy (11/08/2026): porta reusava, curl
+          # dava connection refused mesmo de dentro do proprio container.
+          env:
+            - name: API_SERVER_ENABLED
+              value: "true"
+            - name: API_SERVER_HOST
+              value: "0.0.0.0"
+            - name: HERMES_DASHBOARD
+              value: "1"
           envFrom:
             - secretRef:
                 name: hades-env
