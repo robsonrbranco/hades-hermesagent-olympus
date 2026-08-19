@@ -44,10 +44,25 @@ spec:
           env:
             - name: API_SERVER_ENABLED
               value: "true"
+            # 0.0.0.0 de proposito: a API precisa ser alcancavel por outros
+            # pods do cluster (Cerbero/Hermes) mais pra frente, via MCP. A
+            # trava e a API_SERVER_KEY (secret hades-env), nao o bind.
+            # ATENCAO (aviso do proprio app no log): com terminal.backend
+            # local (default, nao sandboxado), qualquer chamada autenticada
+            # nesse endpoint roda com acesso total ao terminal/filesystem do
+            # container. Antes de conectar outro pod nele de verdade,
+            # avaliar terminal.backend: docker (sandboxado) no config.yaml.
             - name: API_SERVER_HOST
               value: "0.0.0.0"
+            # Dashboard fica em loopback -- so alcancavel via kubectl
+            # port-forward por enquanto (decisao: Control UI/CLI isolado,
+            # sem expor ainda). Bind em 0.0.0.0 exige provedor de auth
+            # configurado (dashboard.basic_auth ou OAuth no config.yaml),
+            # que ainda nao fizemos.
             - name: HERMES_DASHBOARD
               value: "1"
+            - name: HERMES_DASHBOARD_HOST
+              value: "127.0.0.1"
           envFrom:
             - secretRef:
                 name: hades-env
